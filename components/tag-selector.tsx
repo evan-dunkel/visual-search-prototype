@@ -5,11 +5,34 @@ import { X, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Change from interface to exported interface
+export interface TagType {
+  name: string;
+  colorClass?: string;
+}
+
+// Update props interface
 interface TagSelectorProps {
-  availableTags: string[];
+  availableTags: TagType[];
   selectedTags: string[];
   onTagToggle: (tag: string) => void;
   searchQuery?: string;
+}
+
+// Update this utility function to work with Tailwind classes
+function shouldUseLightVariant(colorClass: string) {
+  // Default to dark text for unknown classes
+  if (!colorClass) return true;
+
+  // Map of Tailwind color classes that should use light text
+  const darkBackgrounds = [
+    "bg-blue-500",
+    "bg-blue-600",
+    "bg-red-500",
+    "bg-cyan-500",
+  ];
+
+  return !darkBackgrounds.includes(colorClass);
 }
 
 export function TagSelector({
@@ -20,10 +43,10 @@ export function TagSelector({
 }: TagSelectorProps) {
   const [showMoreTags, setShowMoreTags] = useState(false);
 
-  // Sort tags so selected ones appear first
+  // Update sort function
   const sortedTags = [...allTags].sort((a, b) => {
-    const aSelected = selectedTags.includes(a);
-    const bSelected = selectedTags.includes(b);
+    const aSelected = selectedTags.includes(a.name);
+    const bSelected = selectedTags.includes(b.name);
     if (aSelected && !bSelected) return -1;
     if (!aSelected && bSelected) return 1;
     return 0;
@@ -32,8 +55,9 @@ export function TagSelector({
   const getAvailableTags = () => {
     return allTags.filter(
       (tag) =>
-        !selectedTags.includes(tag) &&
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
+        tag?.name &&
+        !selectedTags.includes(tag.name) &&
+        tag.name.toLowerCase().includes(searchQuery?.toLowerCase() || "")
     );
   };
 
@@ -52,11 +76,13 @@ export function TagSelector({
       >
         <AnimatePresence mode="popLayout">
           {sortedTags.map((tag) => {
-            const isSelected = selectedTags.includes(tag);
+            const isSelected = selectedTags.includes(tag.name);
             const isVisible =
               isSelected ||
               (!isSelected &&
-                tag.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                tag?.name
+                  ?.toLowerCase()
+                  .includes((searchQuery || "").toLowerCase()) &&
                 (showMoreTags ||
                   availableTags.indexOf(tag) < INITIAL_TAGS_COUNT));
 
@@ -64,7 +90,7 @@ export function TagSelector({
 
             return (
               <motion.div
-                key={tag}
+                key={tag.name}
                 layout="position"
                 transition={{
                   layout: { type: "spring", stiffness: 1000, damping: 60 },
@@ -73,10 +99,18 @@ export function TagSelector({
               >
                 <Badge
                   variant={isSelected ? "secondary" : "outline"}
-                  className={`cursor-pointer ${
-                    isSelected ? "hover:bg-secondary/80" : "hover:bg-secondary"
-                  } flex items-center h-7 shrink-0 transition-colors duration-300 ease-in-out`}
-                  onClick={() => onTagToggle(tag)}
+                  className={`cursor-pointer flex items-center h-7 shrink-0 transition-colors duration-300 ease-in-out ${
+                    tag.colorClass || ""
+                  } ${
+                    tag.colorClass
+                      ? `hover:bg-opacity-80 hover:bg-${tag.colorClass}`
+                      : "hover:bg-secondary"
+                  } ${
+                    shouldUseLightVariant(tag.colorClass ?? "")
+                      ? "text-black"
+                      : "text-white"
+                  }`}
+                  onClick={() => onTagToggle(tag.name)}
                 >
                   <motion.div
                     initial={{ width: 0 }}
@@ -88,7 +122,7 @@ export function TagSelector({
                   >
                     <X className="mr-1 h-3 w-3" />
                   </motion.div>
-                  {tag}
+                  {tag.name}
                 </Badge>
               </motion.div>
             );
@@ -127,3 +161,10 @@ export function TagSelector({
     </div>
   );
 }
+
+const tags: TagType[] = [
+  { name: "React", colorClass: "bg-blue-500" },
+  { name: "TypeScript", colorClass: "bg-blue-600" },
+  { name: "JavaScript", colorClass: "bg-yellow-400" },
+  { name: "Regular Tag" }, // Tags without colors still work
+];

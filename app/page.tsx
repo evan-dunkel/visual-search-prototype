@@ -4,7 +4,8 @@ import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
-import { TagSelector } from "./components/tag-selector";
+import { TagSelector } from "../components/tag-selector";
+import { sampleTags } from "@/data/sample-tags";
 
 // Define our image data type
 type ImageItem = {
@@ -15,20 +16,6 @@ type ImageItem = {
 };
 
 // Sample data - you would replace this with your actual data
-const SAMPLE_TAGS = [
-  "blue",
-  "red",
-  "beach",
-  "blonde",
-  "casual",
-  "child",
-  "clothing",
-  "cold",
-  "denim",
-  "dress",
-  "happy",
-];
-
 const SAMPLE_IMAGES: ImageItem[] = [
   {
     id: "1",
@@ -70,7 +57,7 @@ export default function Home() {
           />
 
           <TagSelector
-            availableTags={SAMPLE_TAGS}
+            availableTags={sampleTags}
             selectedTags={selectedTags}
             onTagToggle={toggleTag}
             searchQuery={searchQuery}
