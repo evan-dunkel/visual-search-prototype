@@ -93,29 +93,42 @@ export default function Home() {
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
-    const tagSet = new Set<string>();
+    // First, count occurrences of each tag
+    const tagCounts = new Map<string, number>();
     images.forEach((image) => {
-      image.tags.forEach((tag) => tagSet.add(tag));
-    });
-    return Array.from(tagSet)
-      .sort()
-      .map((tag) => {
-        const colorInfo = getColorForTag(tag);
-        return {
-          name: tag,
-          ...(colorInfo && {
-            colorClass: `${colorInfo.bg} ${colorInfo.text}`,
-          }),
-        };
-      })
-      .sort((a, b) => {
-        // If both tags have colors or both don't have colors, sort alphabetically
-        if (!!a.colorClass === !!b.colorClass) {
-          return a.name.localeCompare(b.name);
-        }
-        // If only one has a color, prioritize the one with color
-        return a.colorClass ? -1 : 1;
+      image.tags.forEach((tag) => {
+        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
       });
+    });
+
+    // Convert to TagType array with counts and colors
+    const tags = Array.from(tagCounts.entries()).map(([tag, count]) => {
+      const colorInfo = getColorForTag(tag);
+      return {
+        name: tag,
+        count,
+        ...(colorInfo && {
+          colorClass: `${colorInfo.bg} ${colorInfo.text}`,
+        }),
+      };
+    });
+
+    // Sort tags:
+    // 1. By count (descending)
+    // 2. Then by whether they have color
+    // 3. Then alphabetically
+    return tags.sort((a, b) => {
+      // First, sort by count
+      if (a.count !== b.count) {
+        return b.count - a.count;
+      }
+      // If counts are equal, check for colors
+      if (!!a.colorClass !== !!b.colorClass) {
+        return a.colorClass ? -1 : 1;
+      }
+      // If color status is the same, sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
   }, [images]);
 
   const toggleTag = (tagName: string) => {
