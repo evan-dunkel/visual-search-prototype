@@ -12,4 +12,10 @@ export const sampleTags: TagType[] = [
   { name: "Denim", colorClass: "bg-blue-600" },
   { name: "Dress" },
   { name: "Happy" },
+  { name: "Holiday" },
+  { name: "Indie" },
+  { name: "Jacket" },
+  { name: "Jeans" },
+  { name: "Lifestyle" },
+  { name: "Long" },
 ];
