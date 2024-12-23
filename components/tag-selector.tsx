@@ -92,15 +92,7 @@ export function TagSelector({
                     variant={isSelected ? "secondary" : "outline"}
                     className={`cursor-pointer flex items-center h-7 shrink-0 transition-colors duration-300 ease-in-out ${
                       tag.colorClass || ""
-                    } ${
-                      tag.colorClass
-                        ? `hover:bg-opacity-80 hover:bg-${tag.colorClass}`
-                        : "hover:bg-secondary"
-                    } ${
-                      shouldUseLightVariant(tag.colorClass ?? "")
-                        ? "text-black"
-                        : "text-white"
-                    }`}
+                    } hover:bg-opacity-80`}
                     onClick={() => onTagToggle(tag.name)}
                   >
                     <motion.div

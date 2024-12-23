@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# database
+/pb_data
+/pocketbase_0.23.12_darwin_arm64/*
+
+
 # debug
 npm-debug.log*
 yarn-debug.log*

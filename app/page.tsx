@@ -2,33 +2,124 @@
 
 import Image from "next/image";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState, useEffect } from "react";
-import { TagSelector } from "../components/tag-selector";
-import { sampleTags } from "@/data/sample-tags";
+import { useState, useEffect, useMemo } from "react";
+import { TagSelector, TagType } from "../components/tag-selector";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { getImages, ImageItem } from "@/lib/pocketbase";
+
+// Color mapping for known color words with text color information
+const COLOR_MAPPINGS: Record<string, { bg: string; text: string }> = {
+  red: { bg: "bg-red-500", text: "text-white" },
+  blue: { bg: "bg-blue-500", text: "text-white" },
+  green: { bg: "bg-green-500", text: "text-white" },
+  yellow: { bg: "bg-yellow-500", text: "text-black" },
+  purple: { bg: "bg-purple-500", text: "text-white" },
+  pink: { bg: "bg-pink-500", text: "text-white" },
+  orange: { bg: "bg-orange-500", text: "text-white" },
+  brown: { bg: "bg-amber-700", text: "text-white" },
+  gray: { bg: "bg-gray-500", text: "text-white" },
+  grey: { bg: "bg-gray-500", text: "text-white" },
+  black: { bg: "bg-black", text: "text-white" },
+  white: { bg: "bg-white", text: "text-black" },
+  navy: { bg: "bg-blue-900", text: "text-white" },
+  teal: { bg: "bg-teal-500", text: "text-white" },
+  cyan: { bg: "bg-cyan-500", text: "text-black" },
+  indigo: { bg: "bg-indigo-500", text: "text-white" },
+  violet: { bg: "bg-violet-500", text: "text-white" },
+  maroon: { bg: "bg-red-900", text: "text-white" },
+  beige: { bg: "bg-[#F5F5DC]", text: "text-black" },
+  tan: { bg: "bg-[#D2B48C]", text: "text-black" },
+  gold: { bg: "bg-yellow-600", text: "text-white" },
+  silver: { bg: "bg-gray-300", text: "text-black" },
+  bronze: { bg: "bg-amber-600", text: "text-white" },
+};
+
+// Helper function to detect color in a tag
+const getColorForTag = (
+  tag: string
+): { bg: string; text: string } | undefined => {
+  const lowercaseTag = tag.toLowerCase();
+  // Check if the tag itself is a color
+  if (COLOR_MAPPINGS[lowercaseTag]) {
+    return COLOR_MAPPINGS[lowercaseTag];
+  }
+  // Check if the tag contains a color word
+  for (const [color, classes] of Object.entries(COLOR_MAPPINGS)) {
+    if (lowercaseTag.includes(color)) {
+      return classes;
+    }
+  }
+  return undefined;
+};
 
 export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchImages = async () => {
-      const fetchedImages = await getImages(searchQuery);
-      setImages(fetchedImages);
+      try {
+        setIsLoading(true);
+        setError(null);
+        const fetchedImages = await getImages(searchQuery);
+        console.log("Fetched images:", fetchedImages);
+        setImages(fetchedImages);
+      } catch (err) {
+        console.error("Error in fetchImages:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch images");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchImages();
   }, [searchQuery, selectedTags]);
 
-  const toggleTag = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter((t) => t !== tag));
+  // Extract unique tags from loaded images and convert to TagType with colors
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    images.forEach((image) => {
+      image.tags.forEach((tag) => tagSet.add(tag));
+    });
+    return Array.from(tagSet)
+      .sort()
+      .map((tag) => {
+        const colorInfo = getColorForTag(tag);
+        return {
+          name: tag,
+          ...(colorInfo && {
+            colorClass: `${colorInfo.bg} ${colorInfo.text}`,
+          }),
+        };
+      })
+      .sort((a, b) => {
+        // If both tags have colors or both don't have colors, sort alphabetically
+        if (!!a.colorClass === !!b.colorClass) {
+          return a.name.localeCompare(b.name);
+        }
+        // If only one has a color, prioritize the one with color
+        return a.colorClass ? -1 : 1;
+      });
+  }, [images]);
+
+  const toggleTag = (tagName: string) => {
+    if (selectedTags.includes(tagName)) {
+      setSelectedTags(selectedTags.filter((t) => t !== tagName));
     } else {
-      setSelectedTags([...selectedTags, tag]);
+      setSelectedTags([...selectedTags, tagName]);
     }
   };
+
+  // Filter images based on selected tags
+  const filteredImages = useMemo(() => {
+    if (selectedTags.length === 0) return images;
+    return images.filter((image) =>
+      selectedTags.every((tag) => image.tags.includes(tag))
+    );
+  }, [images, selectedTags]);
 
   return (
     <div className="flex flex-col items-center justify-items-center min-h-screen font-[family-name:var(--font-geist-sans)] p-2">
@@ -52,7 +143,7 @@ export default function Home() {
 
           <div className="flex flex-row flex-wrap items-center gap-2 min-h-[2.25rem]">
             <TagSelector
-              availableTags={sampleTags}
+              availableTags={availableTags}
               selectedTags={selectedTags}
               onTagToggle={toggleTag}
               searchQuery={searchQuery}
@@ -60,34 +151,56 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-          {images.map((image) => (
-            <div
-              key={image.id}
-              className="relative aspect-square overflow-hidden rounded-lg"
-            >
-              <Image
-                src={`http://127.0.0.1:8090/api/files/${image.collectionId}/${image.id}/${image.image}`}
-                alt={image.title}
-                fill
-                className="object-cover"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
-                <h3 className="text-sm font-medium">{image.title}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {image.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="text-xs bg-white bg-opacity-20 rounded px-1"
-                    >
-                      {tag}
-                    </span>
-                  ))}
+        {isLoading && <div className="mt-6 text-center">Loading images...</div>}
+
+        {error && (
+          <div className="mt-6 text-red-500 text-center">Error: {error}</div>
+        )}
+
+        {!isLoading && !error && filteredImages.length === 0 && (
+          <div className="mt-6 text-center">
+            No images found. Try a different search or add some images.
+          </div>
+        )}
+
+        {!isLoading && !error && filteredImages.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 w-full">
+            {filteredImages.map((image) => (
+              <div
+                key={image.id}
+                className="relative w-full aspect-square overflow-hidden rounded-lg h-[300px]"
+              >
+                <Image
+                  src={`http://127.0.0.1:8090/api/files/${image.collectionId}/${image.id}/${image.image}`}
+                  alt={image.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
+                  <h3 className="text-sm font-medium">{image.title}</h3>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {image.tags.map((tag) => {
+                      const colorInfo = getColorForTag(tag);
+                      return (
+                        <span
+                          key={tag}
+                          className={`text-xs rounded px-1 ${
+                            colorInfo
+                              ? `${colorInfo.bg} ${colorInfo.text}`
+                              : "bg-white bg-opacity-20 text-white"
+                          }`}
+                        >
+                          {tag}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
