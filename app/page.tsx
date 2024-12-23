@@ -55,28 +55,41 @@ const getColorForTag = (
 export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStableResults, setIsStableResults] = useState(false);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const fetchImages = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
-        const fetchedImages = await getImages(searchQuery);
+        setIsStableResults(false);
+        const fetchedImages = await getImages(debouncedSearchQuery);
         console.log("Fetched images:", fetchedImages);
         setImages(fetchedImages);
+        // Add a small delay before showing stable results
+        setTimeout(() => {
+          setIsStableResults(true);
+        }, 300);
       } catch (err) {
         console.error("Error in fetchImages:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch images");
-      } finally {
-        setIsLoading(false);
+        setIsStableResults(true);
       }
     };
 
     fetchImages();
-  }, [searchQuery, selectedTags]);
+  }, [debouncedSearchQuery, selectedTags]);
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
@@ -151,19 +164,17 @@ export default function Home() {
           </div>
         </div>
 
-        {isLoading && <div className="mt-6 text-center">Loading images...</div>}
-
         {error && (
           <div className="mt-6 text-red-500 text-center">Error: {error}</div>
         )}
 
-        {!isLoading && !error && filteredImages.length === 0 && (
+        {isStableResults && !error && filteredImages.length === 0 && (
           <div className="mt-6 text-center">
             No images found. Try a different search or add some images.
           </div>
         )}
 
-        {!isLoading && !error && filteredImages.length > 0 && (
+        {!error && filteredImages.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 w-full">
             {filteredImages.map((image) => (
               <div
