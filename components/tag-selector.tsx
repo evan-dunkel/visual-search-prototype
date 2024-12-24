@@ -89,10 +89,14 @@ export function TagSelector({
                   className="inline items-center"
                 >
                   <Badge
-                    variant={isSelected ? "secondary" : "outline"}
+                    variant="outline"
                     className={`cursor-pointer flex items-center h-7 shrink-0 transition-colors duration-300 ease-in-out ${
-                      tag.colorClass || ""
-                    } [&:hover]:!bg-opacity-80 [&:hover]:!text-opacity-100`}
+                      tag.colorClass
+                        ? `${tag.colorClass} hover:bg-opacity-80`
+                        : isSelected
+                        ? "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                        : ""
+                    }`}
                     onClick={() => onTagToggle(tag.name)}
                   >
                     <motion.div

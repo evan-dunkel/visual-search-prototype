@@ -28,14 +28,11 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       if (e.key === "," && e.currentTarget.value.trim()) {
         e.preventDefault();
         onCommaPress?.(e.currentTarget.value.trim());
-        e.currentTarget.value = "";
+        const input = e.currentTarget;
+        input.value = "";
         if (props.onChange) {
-          const event = new Event("input", {
-            bubbles: true,
-          }) as unknown as React.ChangeEvent<HTMLInputElement>;
-          event.target = e.currentTarget;
-          event.currentTarget = e.currentTarget;
-          props.onChange(event);
+          const nativeEvent = new Event("input", { bubbles: true });
+          input.dispatchEvent(nativeEvent);
         }
       }
     };

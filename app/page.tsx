@@ -131,7 +131,12 @@ export default function Home() {
     if (error || !isStableResults) {
       setShowReducedOpacity(true);
       if (!error) {
-        setShowSpinner(true);
+        // Add delay before showing spinner
+        const spinnerTimer = setTimeout(() => {
+          setShowSpinner(true);
+        }, 1000);
+
+        return () => clearTimeout(spinnerTimer);
       }
     }
   }, [isStableResults, error]);
@@ -316,7 +321,11 @@ export default function Home() {
             onCommaPress={(value) => {
               // Only add if it's not already in the selected tags
               if (!selectedTags.includes(value)) {
-                setSelectedTags([...selectedTags, value]);
+                setSelectedTags([value, ...selectedTags]);
+                // Add to order tracking with current timestamp when selected
+                const newOrder = new Map(selectedTagsOrder);
+                newOrder.set(value, Date.now());
+                setSelectedTagsOrder(newOrder);
               }
               setSearchQuery("");
             }}
