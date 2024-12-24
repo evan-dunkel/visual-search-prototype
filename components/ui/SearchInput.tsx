@@ -10,7 +10,12 @@ import { Button } from "./button";
 interface SearchInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
   libraries?: Array<{ value: string; label: string }>;
-  lists?: Array<{ value: string; label: string }>;
+  lists?: Array<{
+    value: string;
+    label: string;
+    updated: string;
+    images: string[];
+  }>;
   selectedLibrary?: string | null;
   selectedLists?: string[];
   onSearch?: () => void;

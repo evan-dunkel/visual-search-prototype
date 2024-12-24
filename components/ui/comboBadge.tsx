@@ -31,7 +31,12 @@ type Option = {
 
 interface FilterBadgeProps {
   libraries?: Option[];
-  lists?: Option[];
+  lists?: Array<{
+    value: string;
+    label: string;
+    updated: string;
+    images: string[];
+  }>;
   selectedLibrary?: string | null;
   selectedLists?: string[];
   onLibraryChange?: (libraryId: string | null) => void;
@@ -65,9 +70,17 @@ export function FilterBadge({
   }, [libraries, searchValue]);
 
   const filteredLists = React.useMemo(() => {
-    if (!searchValue) return lists;
-    const search = searchValue.toLowerCase();
-    return lists.filter((list) => list.label.toLowerCase().includes(search));
+    let filtered = lists;
+    if (searchValue) {
+      const search = searchValue.toLowerCase();
+      filtered = filtered.filter((list) =>
+        list.label.toLowerCase().includes(search)
+      );
+    }
+    // Sort by updated time (most recent first)
+    return filtered.sort(
+      (a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime()
+    );
   }, [lists, searchValue]);
 
   const getDisplayText = () => {
@@ -100,7 +113,7 @@ export function FilterBadge({
   };
 
   return (
-    <div className={cn("inline-block h-7", className)}>
+    <div className={cn("inline-block h-7 select-none", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -172,6 +185,9 @@ export function FilterBadge({
                         >
                           {list.label}
                         </Label>
+                        <span className="text-xs text-muted-foreground">
+                          {list.images.length}
+                        </span>
                       </div>
                     </CommandItem>
                   ))}

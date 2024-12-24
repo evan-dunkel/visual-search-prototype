@@ -44,11 +44,12 @@ export function AddToListButton({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
   const [loadingLists, setLoadingLists] = useState<Set<string>>(new Set());
+  const [sortedLists, setSortedLists] = useState(lists);
   const pendingOperations = useRef<
     Map<string, { type: "add" | "remove"; promise: Promise<void> }>
   >(new Map());
 
-  // Update selected lists when lists prop changes
+  // Update selected lists and maintain sorted order when lists prop changes
   useEffect(() => {
     const initialSelected = new Set(
       lists
@@ -56,7 +57,35 @@ export function AddToListButton({
         .map((list) => list.id)
     );
     setSelectedLists(initialSelected);
+
+    // Create a map of the current sorted order
+    const currentOrder = new Map(
+      sortedLists.map((list, index) => [list.id, index])
+    );
+
+    // Update sortedLists while maintaining the current order
+    setSortedLists(
+      [...lists].sort((a, b) => {
+        const aIndex = currentOrder.get(a.id) ?? Infinity;
+        const bIndex = currentOrder.get(b.id) ?? Infinity;
+        return aIndex - bIndex;
+      })
+    );
   }, [lists, imageId]);
+
+  // Handle menu open/close
+  const handleOpenChange = (newOpen: boolean) => {
+    if (newOpen) {
+      // Only sort when opening
+      setSortedLists(
+        [...lists].sort(
+          (a, b) =>
+            new Date(b.updated).getTime() - new Date(a.updated).getTime()
+        )
+      );
+    }
+    setOpen(newOpen);
+  };
 
   const toggleList = async (listId: string, checked: boolean) => {
     // If there's a pending operation, wait for it to complete
@@ -89,7 +118,12 @@ export function AddToListButton({
         } else if (wasSelected && !checked) {
           await removeImageFromList(listId, imageId);
         }
-        onListsChange?.();
+        // Wrap the onListsChange call in a try-catch to prevent unhandled rejections
+        try {
+          await onListsChange?.();
+        } catch (error) {
+          console.error("Error in onListsChange:", error);
+        }
       } catch (error) {
         console.error("Error toggling list:", error);
         // Revert the optimistic update on error
@@ -144,7 +178,12 @@ export function AddToListButton({
       await addImageToList(newList.id, imageId);
       setNewListName("");
       setSelectedLists((prev) => new Set([...prev, newList.id]));
-      onListsChange?.();
+      // Wrap the onListsChange call in a try-catch to prevent unhandled rejections
+      try {
+        await onListsChange?.();
+      } catch (error) {
+        console.error("Error in onListsChange:", error);
+      }
     } catch (error) {
       console.error("Error creating list:", error);
     } finally {
@@ -152,7 +191,7 @@ export function AddToListButton({
     }
   };
 
-  const filteredLists = lists.filter((list) =>
+  const filteredLists = sortedLists.filter((list) =>
     searchQuery
       ? list.name.toLowerCase().includes(searchQuery.toLowerCase())
       : true
@@ -161,7 +200,7 @@ export function AddToListButton({
   const isInLists = selectedLists.size > 0;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant={isInLists ? "default" : "secondary"}
@@ -214,6 +253,9 @@ export function AddToListButton({
                   >
                     {list.name}
                   </label>
+                  <span className="text-xs text-muted-foreground">
+                    {list.images.length}
+                  </span>
                 </CommandItem>
               ))}
               {!searchQuery && (

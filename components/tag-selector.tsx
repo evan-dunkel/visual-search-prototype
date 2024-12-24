@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export interface TagType {
   name: string;
   colorClass?: string;
+  count?: number;
 }
 
 // Update props interface
@@ -110,6 +111,11 @@ export function TagSelector({
                       <X className="mr-1 h-3 w-3" />
                     </motion.div>
                     {tag.name}
+                    {typeof tag.count === "number" && (
+                      <span className="ml-1.5 text-xs text-muted-foreground/70">
+                        {tag.count}
+                      </span>
+                    )}
                   </Badge>
                 </motion.div>
               );

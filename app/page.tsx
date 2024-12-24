@@ -364,6 +364,8 @@ export default function Home() {
             lists={lists.map((list) => ({
               value: list.id,
               label: list.name,
+              updated: list.updated,
+              images: list.images,
             }))}
             selectedLibrary={null}
             selectedLists={selectedLists.map((list) => list.id)}
