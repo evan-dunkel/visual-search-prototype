@@ -196,7 +196,7 @@ export function EditableListItem({
               onChange={(e) => setEditedName(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleBlur}
-              className="h-6 py-0 text-sm -mx-[.567rem] px-2"
+              className="h-6 py-0 text-sm -ml-[.567rem] pl-2"
               disabled={isLoading}
             />
           ) : (
