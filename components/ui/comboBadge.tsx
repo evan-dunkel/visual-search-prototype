@@ -24,29 +24,6 @@ type Option = {
   label: string;
 };
 
-const defaultOptions: Option[] = [
-  {
-    value: "backlog",
-    label: "Backlog",
-  },
-  {
-    value: "todo",
-    label: "Todo",
-  },
-  {
-    value: "in progress",
-    label: "In Progress",
-  },
-  {
-    value: "done",
-    label: "Done",
-  },
-  {
-    value: "canceled",
-    label: "Canceled",
-  },
-];
-
 interface ComboBadgeProps {
   options?: Option[];
   title?: string;
@@ -55,7 +32,7 @@ interface ComboBadgeProps {
 }
 
 export function ComboBadge({
-  options = defaultOptions,
+  options = [],
   title = "Library",
   className,
   onChange,
@@ -64,6 +41,15 @@ export function ComboBadge({
   const [selectedOption, setSelectedOption] = React.useState<Option | null>(
     null
   );
+  const [searchValue, setSearchValue] = React.useState("");
+
+  const filteredOptions = React.useMemo(() => {
+    if (!searchValue) return options;
+    const search = searchValue.toLowerCase();
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(search)
+    );
+  }, [options, searchValue]);
 
   const handleSelect = (value: string) => {
     const option = options.find((opt) => opt.value === value);
@@ -73,6 +59,7 @@ export function ComboBadge({
     setSelectedOption(newSelection);
     onChange?.(newSelection);
     setOpen(false);
+    setSearchValue("");
   };
 
   return (
@@ -84,23 +71,29 @@ export function ComboBadge({
             size="sm"
             className="h-auto px-2 py-1 text-sm font-normal hover:bg-transparent hover:text-foreground/80 data-[state=open]:bg-transparent"
           >
-            {selectedOption ? selectedOption.label : "All libraries"}
+            {selectedOption?.label || "All images"}
             <ChevronDown className="ml-1 h-3 w-3 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="p-0 w-48" side="bottom" align="start">
-          <Command>
-            <CommandInput placeholder="Choose library..." />
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Choose library..."
+              value={searchValue}
+              onValueChange={setSearchValue}
+            />
             <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandEmpty>No libraries found.</CommandEmpty>
               <CommandGroup>
-                {options.map((option) => (
+                {filteredOptions.map((option) => (
                   <CommandItem
                     key={option.value}
                     value={option.value}
                     onSelect={handleSelect}
                     className={cn(
-                      selectedOption?.value === option.value && "font-medium"
+                      "cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                      selectedOption?.value === option.value &&
+                        "font-medium bg-accent text-accent-foreground"
                     )}
                   >
                     {option.label}

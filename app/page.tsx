@@ -5,8 +5,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect, useMemo } from "react";
 import { TagSelector, TagType } from "../components/tag-selector";
 import { SearchInput } from "@/components/ui/SearchInput";
-import { getImages, ImageItem } from "@/lib/pocketbase";
+import {
+  getImages,
+  ImageItem,
+  getImageLists,
+  ImageList,
+} from "@/lib/pocketbase";
 import { Loader2 } from "lucide-react";
+import { AddToListButton } from "@/components/ui/add-to-list-button";
 
 // Color mapping for known color words with text color information
 const COLOR_MAPPINGS: Record<string, { bg: string; text: string }> = {
@@ -110,6 +116,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
+  const [lists, setLists] = useState<ImageList[]>([]);
+  const [selectedList, setSelectedList] = useState<ImageList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStableResults, setIsStableResults] = useState(false);
@@ -148,22 +156,23 @@ export default function Home() {
     let attemptTimeoutId: NodeJS.Timeout;
     let retryTimeoutId: NodeJS.Timeout;
 
-    const fetchImages = async (attempt: number = 0): Promise<void> => {
+    const fetchData = async (attempt: number = 0): Promise<void> => {
       try {
         if (attempt === 0) {
           setIsStableResults(false);
         }
 
         const controller = new AbortController();
-        const fetchedImages = await getImages(
-          debouncedSearchQuery,
-          controller.signal
-        );
+        const [fetchedImages, fetchedLists] = await Promise.all([
+          getImages(debouncedSearchQuery, controller.signal),
+          getImageLists(),
+        ]);
 
         if (!isMounted) return;
 
         console.log("Fetched images:", fetchedImages);
         setImages(fetchedImages);
+        setLists(fetchedLists);
         setError(null);
         setShowReducedOpacity(false);
         setShowSpinner(false);
@@ -171,14 +180,14 @@ export default function Home() {
         setIsStableResults(true);
       } catch (err) {
         if (!isMounted) return;
-        console.error("Error in fetchImages:", err);
+        console.error("Error in fetchData:", err);
 
         // Schedule next retry with delay, but only if we're still within the window
         const timeElapsed = Date.now() - startTime;
         if (timeElapsed < ATTEMPT_WINDOW - RETRY_DELAY) {
           retryTimeoutId = setTimeout(() => {
             if (isMounted) {
-              fetchImages(attempt + 1);
+              fetchData(attempt + 1);
             }
           }, RETRY_DELAY);
         } else {
@@ -193,7 +202,7 @@ export default function Home() {
     const startTime = Date.now();
 
     // Start the fetch process
-    fetchImages();
+    fetchData();
 
     // Set a timeout for the entire attempt window
     attemptTimeoutId = setTimeout(() => {
@@ -222,13 +231,23 @@ export default function Home() {
     setDebouncedSearchQuery((prev) => prev + " ");
   };
 
-  // Filter images based on selected tags
+  // Filter images based on selected tags and list
   const filteredImages = useMemo(() => {
-    if (selectedTags.length === 0) return images;
-    return images.filter((image) =>
+    let filtered = images;
+
+    // First filter by list if one is selected
+    if (selectedList) {
+      filtered = filtered.filter((image) =>
+        selectedList.images.includes(image.id)
+      );
+    }
+
+    // Then filter by tags
+    if (selectedTags.length === 0) return filtered;
+    return filtered.filter((image) =>
       selectedTags.every((tag) => image.tags.includes(tag))
     );
-  }, [images, selectedTags]);
+  }, [images, selectedTags, selectedList]);
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
@@ -315,7 +334,9 @@ export default function Home() {
       <main className="flex flex-col row-start-2 items-center justify-center w-full max-w-3xl">
         <div className="w-full flex flex-col gap-2">
           <SearchInput
-            placeholder="Search for images..."
+            placeholder={`Search ${
+              selectedList ? selectedList.name : "all images"
+            }...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onCommaPress={(value) => {
@@ -331,14 +352,21 @@ export default function Home() {
             }}
             comboOptions={[
               {
-                value: "rashti-library",
-                label: "All libraries",
+                value: "",
+                label: "All images",
               },
-              {
-                value: "inspiration",
-                label: "Inspiration",
-              },
+              ...lists.map((list) => ({
+                value: list.id,
+                label: list.name,
+              })),
             ]}
+            comboTitle="Lists"
+            onComboChange={(option) => {
+              const list = option
+                ? lists.find((l) => l.id === option.value)
+                : null;
+              setSelectedList(list);
+            }}
           />
 
           <div className="flex flex-row flex-wrap items-center gap-2 min-h-[2.25rem]">
@@ -385,7 +413,7 @@ export default function Home() {
               {filteredImages.map((image) => (
                 <div
                   key={image.id}
-                  className="relative w-full aspect-square overflow-hidden rounded-lg h-[300px]"
+                  className="relative w-full h-[300px] overflow-hidden rounded-lg group"
                 >
                   <Image
                     src={`http://127.0.0.1:8090/api/files/${image.collectionId}/${image.id}/${image.image}`}
@@ -393,6 +421,14 @@ export default function Home() {
                     fill
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  />
+                  <AddToListButton
+                    imageId={image.id}
+                    lists={lists}
+                    onListsChange={() => {
+                      // Refetch lists when changes occur
+                      getImageLists().then(setLists);
+                    }}
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
                     <h3 className="text-sm font-medium">{image.title}</h3>

@@ -22,6 +22,15 @@ export type ImageItem = {
   collectionId: string;
 };
 
+export type ImageList = {
+  id: string;
+  name: string;
+  description?: string;
+  images: string[]; // Array of image IDs
+  created: string;
+  updated: string;
+};
+
 // Helper function to get the images collection
 export async function getImages(
   query = "",
@@ -75,6 +84,91 @@ export async function uploadImage(
     return record;
   } catch (error) {
     console.error("Error uploading image:", error);
+    throw error;
+  }
+}
+
+// Helper function to get all image lists
+export async function getImageLists(): Promise<ImageList[]> {
+  try {
+    const records = await pb.collection("image_lists").getList(1, 50, {
+      sort: "-created",
+    });
+
+    return records.items.map((record: any) => ({
+      id: record.id,
+      name: record.name,
+      description: record.description,
+      images: record.images,
+      created: record.created,
+      updated: record.updated,
+    }));
+  } catch (error) {
+    console.error("Error fetching image lists:", error);
+    throw error;
+  }
+}
+
+// Helper function to create a new image list
+export async function createImageList(data: {
+  name: string;
+  description?: string;
+}): Promise<ImageList> {
+  try {
+    const record = await pb.collection("image_lists").create({
+      name: data.name,
+      description: data.description,
+      images: [],
+    });
+
+    return {
+      id: record.id,
+      name: record.name,
+      description: record.description,
+      images: record.images || [],
+      created: record.created,
+      updated: record.updated,
+    };
+  } catch (error) {
+    console.error("Error creating image list:", error);
+    throw error;
+  }
+}
+
+// Helper function to add an image to a list
+export async function addImageToList(
+  listId: string,
+  imageId: string
+): Promise<void> {
+  try {
+    const list = await pb.collection("image_lists").getOne(listId);
+    const images = Array.isArray(list.images) ? list.images : [];
+
+    if (!images.includes(imageId)) {
+      await pb.collection("image_lists").update(listId, {
+        images: [...images, imageId],
+      });
+    }
+  } catch (error) {
+    console.error("Error adding image to list:", error);
+    throw error;
+  }
+}
+
+// Helper function to remove an image from a list
+export async function removeImageFromList(
+  listId: string,
+  imageId: string
+): Promise<void> {
+  try {
+    const list = await pb.collection("image_lists").getOne(listId);
+    const images = Array.isArray(list.images) ? list.images : [];
+
+    await pb.collection("image_lists").update(listId, {
+      images: images.filter((id) => id !== imageId),
+    });
+  } catch (error) {
+    console.error("Error removing image from list:", error);
     throw error;
   }
 }

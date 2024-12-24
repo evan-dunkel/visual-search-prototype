@@ -12,13 +12,47 @@ interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   comboTitle?: string;
   onSearch?: () => void;
   onCommaPress?: (value: string) => void;
+  onComboChange?: (option: { value: string; label: string } | null) => void;
 }
 
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
   (
-    { className, comboOptions, comboTitle, onSearch, onCommaPress, ...props },
+    {
+      className,
+      comboOptions,
+      comboTitle,
+      onSearch,
+      onCommaPress,
+      onComboChange,
+      ...props
+    },
     ref
   ) => {
+    const [comboBadgeWidth, setComboBadgeWidth] = React.useState(0);
+    const comboBadgeRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+      const updateWidth = () => {
+        if (comboBadgeRef.current) {
+          const width = comboBadgeRef.current.offsetWidth;
+          setComboBadgeWidth(width);
+        }
+      };
+
+      // Initial measurement
+      updateWidth();
+
+      // Set up resize observer to handle dynamic changes
+      const resizeObserver = new ResizeObserver(updateWidth);
+      if (comboBadgeRef.current) {
+        resizeObserver.observe(comboBadgeRef.current);
+      }
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }, []);
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       onSearch?.();
@@ -40,17 +74,26 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
     return (
       <div className="flex flex-row items-center gap-2 min-h-[2.25rem] w-full">
         <form onSubmit={handleSubmit} className="relative flex-1 flex">
-          <div className="absolute inset-y-0 left-0 flex items-center border-r pr-2">
-            <ComboBadge options={comboOptions} title={comboTitle} />
+          <div
+            ref={comboBadgeRef}
+            className="absolute inset-y-0 left-0 flex items-center border-r pr-2"
+          >
+            <ComboBadge
+              options={comboOptions}
+              title={comboTitle}
+              onChange={onComboChange}
+            />
           </div>
           <Input
             {...props}
             ref={ref}
             onKeyDown={handleKeyDown}
-            className={cn(
-              "pl-[8.5rem] pr-9 w-full focus-visible:ring-offset-0",
-              className
-            )}
+            className={cn("w-full focus-visible:ring-offset-0 pr-9", className)}
+            style={{
+              paddingLeft: comboBadgeWidth
+                ? `${comboBadgeWidth + 8}px`
+                : undefined,
+            }}
           />
           <Button
             type="submit"
