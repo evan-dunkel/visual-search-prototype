@@ -11,13 +11,33 @@ interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   comboOptions?: Array<{ value: string; label: string }>;
   comboTitle?: string;
   onSearch?: () => void;
+  onCommaPress?: (value: string) => void;
 }
 
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
-  ({ className, comboOptions, comboTitle, onSearch, ...props }, ref) => {
+  (
+    { className, comboOptions, comboTitle, onSearch, onCommaPress, ...props },
+    ref
+  ) => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       onSearch?.();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "," && e.currentTarget.value.trim()) {
+        e.preventDefault();
+        onCommaPress?.(e.currentTarget.value.trim());
+        e.currentTarget.value = "";
+        if (props.onChange) {
+          const event = new Event("input", {
+            bubbles: true,
+          }) as unknown as React.ChangeEvent<HTMLInputElement>;
+          event.target = e.currentTarget;
+          event.currentTarget = e.currentTarget;
+          props.onChange(event);
+        }
+      }
     };
 
     return (
@@ -29,6 +49,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
           <Input
             {...props}
             ref={ref}
+            onKeyDown={handleKeyDown}
             className={cn(
               "pl-[8.5rem] pr-9 w-full focus-visible:ring-offset-0",
               className

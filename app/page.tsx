@@ -104,6 +104,9 @@ const isServerConnectivityError = (error: unknown): boolean => {
 
 export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTagsOrder, setSelectedTagsOrder] = useState<
+    Map<string, number>
+  >(new Map());
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -244,6 +247,15 @@ export default function Home() {
   const availableTags = useMemo(() => {
     // First, count occurrences of each tag
     const tagCounts = new Map<string, number>();
+
+    // Add selected tags with count 0 if they don't exist in filtered images
+    selectedTags.forEach((tag) => {
+      if (!tagCounts.has(tag)) {
+        tagCounts.set(tag, 0);
+      }
+    });
+
+    // Then count occurrences from filtered images
     filteredImages.forEach((image) => {
       image.tags.forEach((tag) => {
         tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
@@ -263,28 +275,51 @@ export default function Home() {
     });
 
     // Sort tags:
-    // 1. By count (descending)
-    // 2. Then by whether they have color
-    // 3. Then alphabetically
+    // 1. Selected tags first, ordered by selection time (most recent first)
+    // 2. Unselected tags sorted by:
+    //    a. Count (descending)
+    //    b. Whether they have color
+    //    c. Alphabetically
     return tags.sort((a, b) => {
-      // First, sort by count
+      const aSelected = selectedTags.includes(a.name);
+      const bSelected = selectedTags.includes(b.name);
+
+      // If both are selected, sort by selection order (most recent first)
+      if (aSelected && bSelected) {
+        const aOrder = selectedTagsOrder.get(a.name) || 0;
+        const bOrder = selectedTagsOrder.get(b.name) || 0;
+        return bOrder - aOrder;
+      }
+
+      // If only one is selected
+      if (aSelected !== bSelected) {
+        return bSelected ? 1 : -1;
+      }
+
+      // For unselected tags, use the original sorting logic
       if (a.count !== b.count) {
         return b.count - a.count;
       }
-      // If counts are equal, check for colors
       if (!!a.colorClass !== !!b.colorClass) {
         return a.colorClass ? -1 : 1;
       }
-      // If color status is the same, sort alphabetically
       return a.name.localeCompare(b.name);
     });
-  }, [filteredImages]);
+  }, [filteredImages, selectedTags, selectedTagsOrder]);
 
   const toggleTag = (tagName: string) => {
     if (selectedTags.includes(tagName)) {
       setSelectedTags(selectedTags.filter((t) => t !== tagName));
+      // Remove from order tracking when deselected
+      const newOrder = new Map(selectedTagsOrder);
+      newOrder.delete(tagName);
+      setSelectedTagsOrder(newOrder);
     } else {
       setSelectedTags([...selectedTags, tagName]);
+      // Add to order tracking with current timestamp when selected
+      const newOrder = new Map(selectedTagsOrder);
+      newOrder.set(tagName, Date.now());
+      setSelectedTagsOrder(newOrder);
     }
   };
 
@@ -296,6 +331,13 @@ export default function Home() {
             placeholder="Search for images..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onCommaPress={(value) => {
+              // Only add if it's not already in the selected tags
+              if (!selectedTags.includes(value)) {
+                setSelectedTags([...selectedTags, value]);
+              }
+              setSearchQuery("");
+            }}
             comboOptions={[
               {
                 value: "rashti-library",
