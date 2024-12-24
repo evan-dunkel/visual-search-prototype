@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateImageList, deleteImageList } from "@/lib/pocketbase";
 import { CommandItem } from "@/components/ui/command";
+import { Trash2 } from "lucide-react";
 
 interface EditableListItemProps {
   id: string;
@@ -180,6 +181,7 @@ export function EditableListItem({
               }
             }}
             onClick={(e) => e.stopPropagation()}
+            className={isEditing ? "opacity-0" : ""}
           />
         )}
         <div
@@ -194,7 +196,7 @@ export function EditableListItem({
               onChange={(e) => setEditedName(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleBlur}
-              className="h-6 py-0"
+              className="h-6 py-0 text-sm -mx-[.567rem] px-2"
               disabled={isLoading}
             />
           ) : (
@@ -247,14 +249,14 @@ export function EditableListItem({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+              className="h-6 w-6 p-0 hover:bg-red-50 hover:text-red-600"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDelete(e);
               }}
               disabled={isLoading}
             >
-              Delete
+              <Trash2 className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
