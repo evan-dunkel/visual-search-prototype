@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Input } from "./input";
-import { FilterBadge } from "./comboBadge";
+import { ComboFilter } from "./comboFilter";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
@@ -30,7 +30,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       className,
       libraries = [],
       lists = [],
-      selectedLibrary,
+      selectedLibrary = null,
       selectedLists = [],
       onSearch,
       onCommaPress,
@@ -112,6 +112,27 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         : placeholder;
     };
 
+    // Transform props for ComboFilter
+    const transformedLibraries = libraries.map((lib) => ({
+      id: lib.value,
+      name: lib.label,
+    }));
+
+    const transformedLists = lists.map((list) => ({
+      id: list.value,
+      name: list.label,
+      imageCount: list.images.length,
+      updated: list.updated,
+    }));
+
+    const handleLibraryChange = (libraryId: string | null) => {
+      onLibraryChange?.(libraryId);
+    };
+
+    const handleListsChange = (newLists: Set<string>) => {
+      onListsChange?.(Array.from(newLists));
+    };
+
     return (
       <div className="flex flex-row items-center gap-2 min-h-[2.25rem] w-full">
         <form onSubmit={handleSubmit} className="relative flex-1 flex">
@@ -119,13 +140,13 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
             ref={comboBadgeRef}
             className="absolute inset-y-0 left-0 flex items-center border-r pr-2"
           >
-            <FilterBadge
-              libraries={libraries}
-              lists={lists}
+            <ComboFilter
+              libraries={transformedLibraries}
+              lists={transformedLists}
               selectedLibrary={selectedLibrary}
-              selectedLists={selectedLists}
-              onLibraryChange={onLibraryChange}
-              onListsChange={onListsChange}
+              selectedLists={new Set(selectedLists)}
+              onLibraryChange={handleLibraryChange}
+              onListsChange={handleListsChange}
             />
           </div>
           <Input

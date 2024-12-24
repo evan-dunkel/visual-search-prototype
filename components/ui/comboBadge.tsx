@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -19,18 +18,11 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
-import { RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { RadioGroup } from "@/components/ui/radio-group";
-
-type Option = {
-  value: string;
-  label: string;
-};
 
 interface FilterBadgeProps {
-  libraries?: Option[];
+  libraries?: Array<{ value: string; label: string }>;
   lists?: Array<{
     value: string;
     label: string;
@@ -136,31 +128,26 @@ export function FilterBadge({
               <CommandEmpty>No filters found.</CommandEmpty>
               {(filteredLibraries.length > 0 || !searchValue) && (
                 <CommandGroup heading="Libraries">
-                  <RadioGroup
-                    value={selectedLibrary || ""}
-                    onValueChange={handleLibraryChange}
-                  >
-                    {filteredLibraries.map((library) => (
-                      <CommandItem
-                        key={library.value}
-                        onSelect={() => handleLibraryChange(library.value)}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <div className="flex items-center space-x-2 w-full">
-                          <RadioGroupItem
-                            value={library.value}
-                            id={library.value}
-                          />
-                          <Label
-                            htmlFor={library.value}
-                            className="cursor-pointer flex-grow"
-                          >
-                            {library.label}
-                          </Label>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </RadioGroup>
+                  {filteredLibraries.map((library) => (
+                    <CommandItem
+                      key={library.value}
+                      onSelect={() => handleLibraryChange(library.value)}
+                      className="flex items-center gap-2"
+                    >
+                      <Checkbox
+                        id={library.value}
+                        checked={library.value === selectedLibrary}
+                        onCheckedChange={(checked) => {
+                          if (checked !== "indeterminate") {
+                            handleLibraryChange(library.value);
+                          }
+                        }}
+                      />
+                      <Label htmlFor={library.value} className="flex-grow">
+                        {library.label}
+                      </Label>
+                    </CommandItem>
+                  ))}
                 </CommandGroup>
               )}
               {((filteredLibraries.length > 0 && filteredLists.length > 0) ||
@@ -171,24 +158,23 @@ export function FilterBadge({
                     <CommandItem
                       key={list.value}
                       onSelect={() => handleListToggle(list.value)}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-2"
                     >
-                      <div className="flex items-center space-x-2 w-full">
-                        <Checkbox
-                          id={list.value}
-                          checked={selectedLists.includes(list.value)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <Label
-                          htmlFor={list.value}
-                          className="cursor-pointer flex-grow"
-                        >
-                          {list.label}
-                        </Label>
-                        <span className="text-xs text-muted-foreground">
-                          {list.images.length}
-                        </span>
-                      </div>
+                      <Checkbox
+                        id={list.value}
+                        checked={selectedLists.includes(list.value)}
+                        onCheckedChange={(checked) => {
+                          if (checked !== "indeterminate") {
+                            handleListToggle(list.value);
+                          }
+                        }}
+                      />
+                      <Label htmlFor={list.value} className="flex-grow">
+                        {list.label}
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        {list.images.length}
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
