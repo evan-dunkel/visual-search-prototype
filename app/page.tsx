@@ -117,7 +117,7 @@ export default function Home() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
   const [lists, setLists] = useState<ImageList[]>([]);
-  const [selectedList, setSelectedList] = useState<ImageList | null>(null);
+  const [selectedLists, setSelectedLists] = useState<ImageList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStableResults, setIsStableResults] = useState(false);
@@ -235,10 +235,11 @@ export default function Home() {
   const filteredImages = useMemo(() => {
     let filtered = images;
 
-    // First filter by list if one is selected
-    if (selectedList) {
+    // First filter by lists if any are selected
+    if (selectedLists.length > 0) {
+      const selectedListIds = new Set(selectedLists.map((list) => list.id));
       filtered = filtered.filter((image) =>
-        selectedList.images.includes(image.id)
+        selectedLists.some((list) => list.images.includes(image.id))
       );
     }
 
@@ -247,7 +248,7 @@ export default function Home() {
     return filtered.filter((image) =>
       selectedTags.every((tag) => image.tags.includes(tag))
     );
-  }, [images, selectedTags, selectedList]);
+  }, [images, selectedTags, selectedLists]);
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
@@ -335,7 +336,11 @@ export default function Home() {
         <div className="w-full flex flex-col gap-2">
           <SearchInput
             placeholder={`Search ${
-              selectedList ? selectedList.name : "all images"
+              selectedLists.length > 0
+                ? selectedLists.length === 1
+                  ? selectedLists[0].name
+                  : `${selectedLists.length} lists`
+                : "all images"
             }...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -350,22 +355,27 @@ export default function Home() {
               }
               setSearchQuery("");
             }}
-            comboOptions={[
+            libraries={[
               {
                 value: "",
                 label: "All images",
               },
-              ...lists.map((list) => ({
-                value: list.id,
-                label: list.name,
-              })),
             ]}
-            comboTitle="Lists"
-            onComboChange={(option) => {
-              const list = option
-                ? lists.find((l) => l.id === option.value)
-                : null;
-              setSelectedList(list);
+            lists={lists.map((list) => ({
+              value: list.id,
+              label: list.name,
+            }))}
+            selectedLibrary={null}
+            selectedLists={selectedLists.map((list) => list.id)}
+            onLibraryChange={() => {
+              // For now, we don't have library functionality
+              // This can be implemented later
+            }}
+            onListsChange={(listIds) => {
+              const selectedLists = listIds
+                .map((id) => lists.find((l) => l.id === id))
+                .filter((list): list is ImageList => list !== undefined);
+              setSelectedLists(selectedLists);
             }}
           />
 

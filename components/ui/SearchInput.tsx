@@ -2,28 +2,36 @@
 
 import * as React from "react";
 import { Input } from "./input";
-import { ComboBadge } from "./comboBadge";
+import { FilterBadge } from "./comboBadge";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
-interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  comboOptions?: Array<{ value: string; label: string }>;
-  comboTitle?: string;
+interface SearchInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
+  libraries?: Array<{ value: string; label: string }>;
+  lists?: Array<{ value: string; label: string }>;
+  selectedLibrary?: string | null;
+  selectedLists?: string[];
   onSearch?: () => void;
   onCommaPress?: (value: string) => void;
-  onComboChange?: (option: { value: string; label: string } | null) => void;
+  onLibraryChange?: (libraryId: string | null) => void;
+  onListsChange?: (listIds: string[]) => void;
 }
 
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
   (
     {
       className,
-      comboOptions,
-      comboTitle,
+      libraries = [],
+      lists = [],
+      selectedLibrary,
+      selectedLists = [],
       onSearch,
       onCommaPress,
-      onComboChange,
+      onLibraryChange,
+      onListsChange,
+      placeholder = "Search images...",
       ...props
     },
     ref
@@ -71,6 +79,34 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       }
     };
 
+    // Update placeholder based on selections
+    const getPlaceholder = () => {
+      const parts: string[] = [];
+
+      if (selectedLibrary) {
+        const library = libraries.find((lib) => lib.value === selectedLibrary);
+        if (library) {
+          parts.push(`in ${library.label}`);
+        }
+      }
+
+      if (selectedLists.length > 0) {
+        const listNames = selectedLists
+          .map((id) => lists.find((list) => list.value === id)?.label)
+          .filter(Boolean);
+
+        if (listNames.length === 1) {
+          parts.push(`from ${listNames[0]}`);
+        } else if (listNames.length > 1) {
+          parts.push(`from ${listNames.length} lists`);
+        }
+      }
+
+      return parts.length > 0
+        ? `Search images ${parts.join(" ")}...`
+        : placeholder;
+    };
+
     return (
       <div className="flex flex-row items-center gap-2 min-h-[2.25rem] w-full">
         <form onSubmit={handleSubmit} className="relative flex-1 flex">
@@ -78,16 +114,20 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
             ref={comboBadgeRef}
             className="absolute inset-y-0 left-0 flex items-center border-r pr-2"
           >
-            <ComboBadge
-              options={comboOptions}
-              title={comboTitle}
-              onChange={onComboChange}
+            <FilterBadge
+              libraries={libraries}
+              lists={lists}
+              selectedLibrary={selectedLibrary}
+              selectedLists={selectedLists}
+              onLibraryChange={onLibraryChange}
+              onListsChange={onListsChange}
             />
           </div>
           <Input
             {...props}
             ref={ref}
             onKeyDown={handleKeyDown}
+            placeholder={getPlaceholder()}
             className={cn("w-full focus-visible:ring-offset-0 pr-9", className)}
             style={{
               paddingLeft: comboBadgeWidth
