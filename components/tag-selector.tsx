@@ -31,9 +31,17 @@ function shouldUseLightVariant(colorClass: string) {
     "bg-blue-600",
     "bg-red-500",
     "bg-cyan-500",
+    "bg-black",
+    "bg-maroon",
+    "bg-gold",
+    "bg-yellow-600",
+    "bg-amber-600",
+    "bg-red-900",
+    "bg-blue-900",
   ];
 
-  return !darkBackgrounds.includes(colorClass);
+  // Check if the colorClass contains any of the dark background classes
+  return !darkBackgrounds.some((darkBg) => colorClass.includes(darkBg));
 }
 
 export function TagSelector({
@@ -112,7 +120,15 @@ export function TagSelector({
                     </motion.div>
                     {tag.name}
                     {typeof tag.count === "number" && (
-                      <span className="ml-1.5 text-xs text-muted-foreground/70">
+                      <span
+                        className={`ml-1.5 text-xs ${
+                          tag.colorClass
+                            ? shouldUseLightVariant(tag.colorClass)
+                              ? "text-muted-foreground/70"
+                              : "text-white/70"
+                            : "text-muted-foreground/70"
+                        }`}
+                      >
                         {tag.count}
                       </span>
                     )}
