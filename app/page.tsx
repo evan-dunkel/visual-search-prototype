@@ -128,29 +128,13 @@ export default function Home() {
 
   // Control opacity and spinner visibility with delays
   useEffect(() => {
-    let opacityTimer: NodeJS.Timeout;
-    let spinnerTimer: NodeJS.Timeout;
-
-    if (!isStableResults) {
-      // Start opacity reduction after 500ms
-      opacityTimer = setTimeout(() => {
-        setShowReducedOpacity(true);
-      }, 500);
-
-      // Show spinner after 1000ms
-      spinnerTimer = setTimeout(() => {
+    if (error || !isStableResults) {
+      setShowReducedOpacity(true);
+      if (!error) {
         setShowSpinner(true);
-      }, 1000);
-    } else {
-      setShowReducedOpacity(false);
-      setShowSpinner(false);
+      }
     }
-
-    return () => {
-      clearTimeout(opacityTimer);
-      clearTimeout(spinnerTimer);
-    };
-  }, [isStableResults]);
+  }, [isStableResults, error]);
 
   useEffect(() => {
     const ATTEMPT_WINDOW = 5000; // 5 second window for all attempts
@@ -163,8 +147,6 @@ export default function Home() {
       try {
         if (attempt === 0) {
           setIsStableResults(false);
-          setShowReducedOpacity(false);
-          setShowSpinner(false);
         }
 
         const controller = new AbortController();
@@ -178,12 +160,10 @@ export default function Home() {
         console.log("Fetched images:", fetchedImages);
         setImages(fetchedImages);
         setError(null);
+        setShowReducedOpacity(false);
+        setShowSpinner(false);
         clearTimeout(attemptTimeoutId);
-        setTimeout(() => {
-          if (isMounted) {
-            setIsStableResults(true);
-          }
-        }, 300);
+        setIsStableResults(true);
       } catch (err) {
         if (!isMounted) return;
         console.error("Error in fetchImages:", err);
@@ -196,6 +176,10 @@ export default function Home() {
               fetchImages(attempt + 1);
             }
           }, RETRY_DELAY);
+        } else {
+          setError("Unable to connect to the server. Please try again.");
+          setIsStableResults(true);
+          setShowSpinner(false);
         }
       }
     };
@@ -211,7 +195,6 @@ export default function Home() {
       if (isMounted) {
         setError("Unable to connect to the server. Please try again.");
         setIsStableResults(true);
-        setShowReducedOpacity(false);
         setShowSpinner(false);
       }
     }, ATTEMPT_WINDOW);
@@ -225,11 +208,10 @@ export default function Home() {
 
   // Extract fetchImages logic to a reusable function
   const handleFetch = () => {
-    // Reset all states
     setError(null);
     setIsStableResults(false);
-    setShowReducedOpacity(false);
-    setShowSpinner(false);
+    setShowReducedOpacity(true);
+    setShowSpinner(true);
 
     // Force a re-run of the fetch effect
     setDebouncedSearchQuery((prev) => prev + " ");
@@ -380,7 +362,7 @@ export default function Home() {
 
         <div className="relative w-full">
           {showSpinner && (
-            <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="absolute top-0 left-0 right-0 flex items-center justify-center z-10 h-8">
               <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
             </div>
           )}
