@@ -13,12 +13,9 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandInput,
-  CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   ImageList,
   createImageList,
@@ -26,17 +23,22 @@ import {
   removeImageFromList,
 } from "@/lib/pocketbase";
 import { useState, useEffect, useRef } from "react";
+import { EditableListItem } from "./editable-list-item";
 
 interface AddToListButtonProps {
   imageId: string;
   lists: ImageList[];
   onListsChange?: () => void;
+  onListUpdate?: (listId: string, name: string) => Promise<void>;
+  onListDelete?: (listId: string) => Promise<void>;
 }
 
 export function AddToListButton({
   imageId,
   lists,
   onListsChange,
+  onListUpdate,
+  onListDelete,
 }: AddToListButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -191,6 +193,36 @@ export function AddToListButton({
     }
   };
 
+  const handleListDelete = async (listId: string) => {
+    setLoadingLists((prev) => new Set([...prev, listId]));
+    try {
+      // First update the UI state
+      if (selectedLists.has(listId)) {
+        setSelectedLists((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(listId);
+          return newSet;
+        });
+      }
+      // Then delete the list
+      await onListDelete?.(listId);
+      // Trigger a refresh
+      await onListsChange?.();
+    } catch (error) {
+      console.error("Error deleting list:", error);
+      // If deletion fails, revert the UI state
+      if (selectedLists.has(listId)) {
+        setSelectedLists((prev) => new Set([...prev, listId]));
+      }
+    } finally {
+      setLoadingLists((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(listId);
+        return newSet;
+      });
+    }
+  };
+
   const filteredLists = sortedLists.filter((list) =>
     searchQuery
       ? list.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -227,36 +259,17 @@ export function AddToListButton({
             <CommandEmpty>No lists found.</CommandEmpty>
             <CommandGroup>
               {filteredLists.map((list) => (
-                <CommandItem
+                <EditableListItem
                   key={list.id}
-                  onSelect={() =>
-                    toggleList(list.id, !selectedLists.has(list.id))
-                  }
-                  className="flex items-center gap-2"
-                >
-                  <Checkbox
-                    id={list.id}
-                    checked={selectedLists.has(list.id)}
-                    disabled={loadingLists.has(list.id)}
-                    onCheckedChange={(checked) =>
-                      toggleList(list.id, checked as boolean)
-                    }
-                    className={
-                      loadingLists.has(list.id) ? "opacity-50 cursor-wait" : ""
-                    }
-                  />
-                  <label
-                    htmlFor={list.id}
-                    className={`flex-grow cursor-pointer ${
-                      loadingLists.has(list.id) ? "opacity-50" : ""
-                    }`}
-                  >
-                    {list.name}
-                  </label>
-                  <span className="text-xs text-muted-foreground">
-                    {list.images.length}
-                  </span>
-                </CommandItem>
+                  id={list.id}
+                  name={list.name}
+                  count={list.images.length}
+                  checked={selectedLists.has(list.id)}
+                  disabled={loadingLists.has(list.id)}
+                  onCheckedChange={(checked) => toggleList(list.id, checked)}
+                  onListChange={onListUpdate}
+                  onListDelete={handleListDelete}
+                />
               ))}
               {!searchQuery && (
                 <div className="p-2">

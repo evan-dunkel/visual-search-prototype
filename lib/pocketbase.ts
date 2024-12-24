@@ -172,3 +172,41 @@ export async function removeImageFromList(
     throw error;
   }
 }
+
+// Helper function to update a list's name
+export async function updateImageList(
+  listId: string,
+  data: {
+    name: string;
+    description?: string;
+  }
+): Promise<ImageList> {
+  try {
+    const record = await pb.collection("image_lists").update(listId, {
+      name: data.name,
+      description: data.description,
+    });
+
+    return {
+      id: record.id,
+      name: record.name,
+      description: record.description,
+      images: record.images || [],
+      created: record.created,
+      updated: record.updated,
+    };
+  } catch (error) {
+    console.error("Error updating image list:", error);
+    throw error;
+  }
+}
+
+// Helper function to delete a list
+export async function deleteImageList(listId: string): Promise<void> {
+  try {
+    await pb.collection("image_lists").delete(listId);
+  } catch (error) {
+    console.error("Error deleting image list:", error);
+    throw error;
+  }
+}

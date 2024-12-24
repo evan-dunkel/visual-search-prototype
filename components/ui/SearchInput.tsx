@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Input } from "./input";
 import { ComboFilter } from "./comboFilter";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
@@ -22,6 +22,10 @@ interface SearchInputProps
   onCommaPress?: (value: string) => void;
   onLibraryChange?: (libraryId: string | null) => void;
   onListsChange?: (listIds: string[]) => void;
+  onListUpdate?: (listId: string, name: string) => Promise<void>;
+  onListDelete?: (listId: string) => Promise<void>;
+  onReset?: () => void;
+  hasFilters?: boolean;
 }
 
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
@@ -36,6 +40,10 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       onCommaPress,
       onLibraryChange,
       onListsChange,
+      onListUpdate,
+      onListDelete,
+      onReset,
+      hasFilters = false,
       placeholder = "Search images...",
       ...props
     },
@@ -133,6 +141,29 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       onListsChange?.(Array.from(newLists));
     };
 
+    const handleListUpdate = async (listId: string, name: string) => {
+      try {
+        await onListUpdate?.(listId, name);
+      } catch (error) {
+        console.error("Error updating list:", error);
+      }
+    };
+
+    const handleListDelete = async (listId: string) => {
+      try {
+        // First update the UI state
+        if (selectedLists.includes(listId)) {
+          onListsChange?.(selectedLists.filter((id) => id !== listId));
+        }
+        // Then delete the list
+        await onListDelete?.(listId);
+      } catch (error) {
+        console.error("Error deleting list:", error);
+        // If deletion fails, revert the UI state
+        onListsChange?.(selectedLists);
+      }
+    };
+
     return (
       <div className="flex flex-row items-center gap-2 min-h-[2.25rem] w-full">
         <form onSubmit={handleSubmit} className="relative flex-1 flex">
@@ -147,6 +178,8 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
               selectedLists={new Set(selectedLists)}
               onLibraryChange={handleLibraryChange}
               onListsChange={handleListsChange}
+              onListUpdate={handleListUpdate}
+              onListDelete={handleListDelete}
             />
           </div>
           <Input
@@ -154,21 +187,37 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
             ref={ref}
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
-            className={cn("w-full focus-visible:ring-offset-0 pr-9", className)}
+            className={cn(
+              "w-full focus-visible:ring-offset-0 pr-20",
+              className
+            )}
             style={{
               paddingLeft: comboBadgeWidth
                 ? `${comboBadgeWidth + 8}px`
                 : undefined,
             }}
           />
-          <Button
-            type="submit"
-            variant="ghost"
-            size="icon"
-            className="absolute right-0 h-full rounded-l-none outline-1 outline-black"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
+          <div className="absolute right-0 h-full flex items-center gap-1 pr-2">
+            {hasFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={onReset}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
         </form>
       </div>
     );

@@ -13,6 +13,7 @@ import {
 } from "@/lib/pocketbase";
 import { Loader2 } from "lucide-react";
 import { AddToListButton } from "@/components/ui/add-to-list-button";
+import { useListManager } from "@/lib/hooks/useListManager";
 
 // Color mapping for known color words with text color information
 const COLOR_MAPPINGS: Record<string, { bg: string; text: string }> = {
@@ -116,14 +117,37 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
-  const [lists, setLists] = useState<ImageList[]>([]);
   const [selectedLists, setSelectedLists] = useState<ImageList[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStableResults, setIsStableResults] = useState(false);
   const [showReducedOpacity, setShowReducedOpacity] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+
+  const {
+    lists,
+    isLoading: isLoadingLists,
+    error: listError,
+    fetchLists,
+    updateList,
+    deleteList,
+    addToList,
+    removeFromList,
+  } = useListManager();
+
+  // Initial fetch of lists
+  useEffect(() => {
+    fetchLists();
+  }, [fetchLists]);
+
+  // Set error state based on list errors
+  useEffect(() => {
+    if (listError) {
+      setError(listError);
+      // Clear error after a few seconds
+      setTimeout(() => setError(null), 3000);
+    }
+  }, [listError]);
 
   // Debounce search query
   useEffect(() => {
@@ -163,16 +187,14 @@ export default function Home() {
         }
 
         const controller = new AbortController();
-        const [fetchedImages, fetchedLists] = await Promise.all([
+        const [fetchedImages] = await Promise.all([
           getImages(debouncedSearchQuery, controller.signal),
-          getImageLists(),
         ]);
 
         if (!isMounted) return;
 
         console.log("Fetched images:", fetchedImages);
         setImages(fetchedImages);
-        setLists(fetchedLists);
         setError(null);
         setShowReducedOpacity(false);
         setShowSpinner(false);
@@ -218,18 +240,7 @@ export default function Home() {
       clearTimeout(attemptTimeoutId);
       clearTimeout(retryTimeoutId);
     };
-  }, [debouncedSearchQuery, selectedTags]);
-
-  // Extract fetchImages logic to a reusable function
-  const handleFetch = () => {
-    setError(null);
-    setIsStableResults(false);
-    setShowReducedOpacity(true);
-    setShowSpinner(true);
-
-    // Force a re-run of the fetch effect
-    setDebouncedSearchQuery((prev) => prev + " ");
-  };
+  }, [debouncedSearchQuery]);
 
   // Filter images based on selected tags and list
   const filteredImages = useMemo(() => {
@@ -237,7 +248,6 @@ export default function Home() {
 
     // First filter by lists if any are selected
     if (selectedLists.length > 0) {
-      const selectedListIds = new Set(selectedLists.map((list) => list.id));
       filtered = filtered.filter((image) =>
         selectedLists.some((list) => list.images.includes(image.id))
       );
@@ -249,6 +259,17 @@ export default function Home() {
       selectedTags.every((tag) => image.tags.includes(tag))
     );
   }, [images, selectedTags, selectedLists]);
+
+  // Extract fetchImages logic to a reusable function
+  const handleFetch = () => {
+    setError(null);
+    setIsStableResults(false);
+    setShowReducedOpacity(true);
+    setShowSpinner(true);
+
+    // Force a re-run of the fetch effect
+    setDebouncedSearchQuery((prev) => prev + " ");
+  };
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
@@ -330,6 +351,13 @@ export default function Home() {
     }
   };
 
+  const handleReset = () => {
+    setSelectedTags([]);
+    setSelectedTagsOrder(new Map());
+    setSelectedLists([]);
+    setSearchQuery("");
+  };
+
   return (
     <div className="flex flex-col items-center justify-items-center min-h-screen font-[family-name:var(--font-geist-sans)] p-2">
       <main className="flex flex-col row-start-2 items-center justify-center w-full max-w-3xl">
@@ -371,14 +399,22 @@ export default function Home() {
             selectedLists={selectedLists.map((list) => list.id)}
             onLibraryChange={() => {
               // For now, we don't have library functionality
-              // This can be implemented later
             }}
-            onListsChange={(listIds) => {
+            onListsChange={async (listIds) => {
+              // Update selected lists using the current lists data
               const selectedLists = listIds
                 .map((id) => lists.find((l) => l.id === id))
                 .filter((list): list is ImageList => list !== undefined);
               setSelectedLists(selectedLists);
             }}
+            onListUpdate={updateList}
+            onListDelete={deleteList}
+            onReset={handleReset}
+            hasFilters={
+              selectedTags.length > 0 ||
+              selectedLists.length > 0 ||
+              searchQuery.length > 0
+            }
           />
 
           <div className="flex flex-row flex-wrap items-center gap-2 min-h-[2.25rem]">
@@ -439,8 +475,10 @@ export default function Home() {
                     lists={lists}
                     onListsChange={() => {
                       // Refetch lists when changes occur
-                      getImageLists().then(setLists);
+                      fetchLists();
                     }}
+                    onListUpdate={updateList}
+                    onListDelete={deleteList}
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
                     <h3 className="text-sm font-medium">{image.title}</h3>

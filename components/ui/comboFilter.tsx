@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { EditableListItem } from "./editable-list-item";
 
 interface ComboFilterProps {
   libraries: Array<{ id: string; name: string }>;
@@ -32,6 +33,8 @@ interface ComboFilterProps {
   selectedLists: Set<string>;
   onLibraryChange: (libraryId: string | null) => void;
   onListsChange: (listIds: Set<string>) => void;
+  onListUpdate?: (listId: string, name: string) => Promise<void>;
+  onListDelete?: (listId: string) => Promise<void>;
   className?: string;
 }
 
@@ -42,6 +45,8 @@ export function ComboFilter({
   selectedLists,
   onLibraryChange,
   onListsChange,
+  onListUpdate,
+  onListDelete,
   className,
 }: ComboFilterProps) {
   const [open, setOpen] = React.useState(false);
@@ -89,6 +94,28 @@ export function ComboFilter({
       newLists.add(listId);
     }
     onListsChange(newLists);
+  };
+
+  const handleListUpdate = async (listId: string, name: string) => {
+    try {
+      await onListUpdate?.(listId, name);
+    } catch (error) {
+      console.error("Error updating list:", error);
+    }
+  };
+
+  const handleListDelete = async (listId: string) => {
+    try {
+      // Remove the deleted list from selection if it was selected
+      if (selectedLists.has(listId)) {
+        const newLists = new Set(selectedLists);
+        newLists.delete(listId);
+        onListsChange(newLists);
+      }
+      await onListDelete?.(listId);
+    } catch (error) {
+      console.error("Error deleting list:", error);
+    }
   };
 
   const getDisplayText = () => {
@@ -163,36 +190,17 @@ export function ComboFilter({
               {filteredLists.length > 0 && (
                 <CommandGroup heading="Lists">
                   {filteredLists.map((list) => (
-                    <CommandItem
+                    <EditableListItem
                       key={list.id}
-                      onSelect={() => handleListToggle(list.id)}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Checkbox
-                        id={list.id}
-                        checked={selectedLists.has(list.id)}
-                        disabled={loadingLists.has(list.id)}
-                        onCheckedChange={() => handleListToggle(list.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={
-                          loadingLists.has(list.id)
-                            ? "opacity-50 cursor-wait"
-                            : ""
-                        }
-                      />
-                      <label
-                        htmlFor={list.id}
-                        className={`flex-grow ${
-                          loadingLists.has(list.id) ? "opacity-50" : ""
-                        }`}
-                        onClick={(e) => e.preventDefault()}
-                      >
-                        {list.name}
-                      </label>
-                      <span className="text-xs text-muted-foreground">
-                        {list.imageCount}
-                      </span>
-                    </CommandItem>
+                      id={list.id}
+                      name={list.name}
+                      count={list.imageCount}
+                      checked={selectedLists.has(list.id)}
+                      disabled={loadingLists.has(list.id)}
+                      onCheckedChange={(checked) => handleListToggle(list.id)}
+                      onListChange={handleListUpdate}
+                      onListDelete={handleListDelete}
+                    />
                   ))}
                 </CommandGroup>
               )}

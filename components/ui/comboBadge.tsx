@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { EditableListItem } from "./editable-list-item";
 
 interface FilterBadgeProps {
   libraries?: Array<{ value: string; label: string }>;
@@ -104,6 +105,22 @@ export function FilterBadge({
     onListsChange?.(newLists);
   };
 
+  const handleListUpdate = async () => {
+    // Force a refresh of the parent component
+    onListsChange?.(selectedLists);
+  };
+
+  const handleListDelete = async (listId: string) => {
+    // Remove the deleted list from selection if it was selected
+    if (selectedLists.includes(listId)) {
+      const newLists = selectedLists.filter((id) => id !== listId);
+      onListsChange?.(newLists);
+    } else {
+      // Still trigger a refresh even if the list wasn't selected
+      onListsChange?.(selectedLists);
+    }
+  };
+
   return (
     <div className={cn("inline-block h-7 select-none", className)}>
       <Popover open={open} onOpenChange={setOpen}>
@@ -155,27 +172,18 @@ export function FilterBadge({
               {(filteredLists.length > 0 || !searchValue) && (
                 <CommandGroup heading="Lists">
                   {filteredLists.map((list) => (
-                    <CommandItem
+                    <EditableListItem
                       key={list.value}
-                      onSelect={() => handleListToggle(list.value)}
-                      className="flex items-center gap-2"
-                    >
-                      <Checkbox
-                        id={list.value}
-                        checked={selectedLists.includes(list.value)}
-                        onCheckedChange={(checked) => {
-                          if (checked !== "indeterminate") {
-                            handleListToggle(list.value);
-                          }
-                        }}
-                      />
-                      <Label htmlFor={list.value} className="flex-grow">
-                        {list.label}
-                      </Label>
-                      <span className="text-xs text-muted-foreground">
-                        {list.images.length}
-                      </span>
-                    </CommandItem>
+                      id={list.value}
+                      name={list.label}
+                      count={list.images.length}
+                      checked={selectedLists.includes(list.value)}
+                      onCheckedChange={(checked) =>
+                        handleListToggle(list.value)
+                      }
+                      onListChange={handleListUpdate}
+                      onListDelete={handleListDelete}
+                    />
                   ))}
                 </CommandGroup>
               )}
