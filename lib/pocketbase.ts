@@ -23,12 +23,16 @@ export type ImageItem = {
 };
 
 // Helper function to get the images collection
-export async function getImages(query = ""): Promise<ImageItem[]> {
+export async function getImages(
+  query = "",
+  signal?: AbortSignal
+): Promise<ImageItem[]> {
   try {
     console.log("Fetching images with query:", query);
     const records = await pb.collection("images").getList(1, 50, {
       filter: query ? `title ~ "${query}" || tags ~ "${query}"` : "",
       sort: "-created",
+      signal,
     });
 
     console.log("Received records:", records);
@@ -46,8 +50,10 @@ export async function getImages(query = ""): Promise<ImageItem[]> {
     console.error("Error fetching images:", error);
     if (error instanceof Error) {
       console.error("Error details:", error.message);
+      // Rethrow the error to handle it in the component
+      throw error;
     }
-    return [];
+    throw new Error("An unexpected error occurred while fetching images");
   }
 }
 

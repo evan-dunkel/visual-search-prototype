@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from "react";
 import { TagSelector, TagType } from "../components/tag-selector";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { getImages, ImageItem } from "@/lib/pocketbase";
+import { Loader2 } from "lucide-react";
 
 // Color mapping for known color words with text color information
 const COLOR_MAPPINGS: Record<string, { bg: string; text: string }> = {
@@ -52,6 +53,55 @@ const getColorForTag = (
   return undefined;
 };
 
+// Helper function to detect server connectivity issues
+const isServerConnectivityError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+
+  // Check the error message
+  const errorMessage = error.message.toLowerCase();
+
+  // Common fetch/network error patterns
+  const networkErrorPatterns = [
+    "failed to fetch",
+    "network error",
+    "network request failed",
+    "econnrefused",
+    "timeout",
+    "abort",
+    "not able to connect",
+    "connection refused",
+    "network offline",
+    "no internet",
+  ];
+
+  // Check if it's a TypeError (common for network issues)
+  if (
+    error instanceof TypeError &&
+    networkErrorPatterns.some((pattern) => errorMessage.includes(pattern))
+  ) {
+    return true;
+  }
+
+  // Check if it's a DOMException (e.g., AbortError)
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  // Check if it's a timeout error
+  if (errorMessage.includes("timeout") || error.name === "TimeoutError") {
+    return true;
+  }
+
+  // Check response status for server errors
+  if ("status" in error && typeof error.status === "number") {
+    // Server is down (503), gateway errors (502, 504), or no response
+    return [0, 502, 503, 504].includes(error.status);
+  }
+
+  // Check for other common network error patterns
+  return networkErrorPatterns.some((pattern) => errorMessage.includes(pattern));
+};
+
 export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,6 +110,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStableResults, setIsStableResults] = useState(false);
+  const [showReducedOpacity, setShowReducedOpacity] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -70,32 +123,128 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Control opacity and spinner visibility with delays
   useEffect(() => {
-    const fetchImages = async () => {
+    let opacityTimer: NodeJS.Timeout;
+    let spinnerTimer: NodeJS.Timeout;
+
+    if (!isStableResults) {
+      // Start opacity reduction after 500ms
+      opacityTimer = setTimeout(() => {
+        setShowReducedOpacity(true);
+      }, 500);
+
+      // Show spinner after 1000ms
+      spinnerTimer = setTimeout(() => {
+        setShowSpinner(true);
+      }, 1000);
+    } else {
+      setShowReducedOpacity(false);
+      setShowSpinner(false);
+    }
+
+    return () => {
+      clearTimeout(opacityTimer);
+      clearTimeout(spinnerTimer);
+    };
+  }, [isStableResults]);
+
+  useEffect(() => {
+    const ATTEMPT_WINDOW = 5000; // 5 second window for all attempts
+    const RETRY_DELAY = 1000; // 500ms between retries
+    let isMounted = true;
+    let attemptTimeoutId: NodeJS.Timeout;
+    let retryTimeoutId: NodeJS.Timeout;
+
+    const fetchImages = async (attempt: number = 0): Promise<void> => {
       try {
-        setIsStableResults(false);
-        const fetchedImages = await getImages(debouncedSearchQuery);
+        if (attempt === 0) {
+          setIsStableResults(false);
+          setShowReducedOpacity(false);
+          setShowSpinner(false);
+        }
+
+        const controller = new AbortController();
+        const fetchedImages = await getImages(
+          debouncedSearchQuery,
+          controller.signal
+        );
+
+        if (!isMounted) return;
+
         console.log("Fetched images:", fetchedImages);
         setImages(fetchedImages);
-        // Add a small delay before showing stable results
+        setError(null);
+        clearTimeout(attemptTimeoutId);
         setTimeout(() => {
-          setIsStableResults(true);
+          if (isMounted) {
+            setIsStableResults(true);
+          }
         }, 300);
       } catch (err) {
+        if (!isMounted) return;
         console.error("Error in fetchImages:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch images");
-        setIsStableResults(true);
+
+        // Schedule next retry with delay, but only if we're still within the window
+        const timeElapsed = Date.now() - startTime;
+        if (timeElapsed < ATTEMPT_WINDOW - RETRY_DELAY) {
+          retryTimeoutId = setTimeout(() => {
+            if (isMounted) {
+              fetchImages(attempt + 1);
+            }
+          }, RETRY_DELAY);
+        }
       }
     };
 
+    // Record start time for the attempt window
+    const startTime = Date.now();
+
+    // Start the fetch process
     fetchImages();
+
+    // Set a timeout for the entire attempt window
+    attemptTimeoutId = setTimeout(() => {
+      if (isMounted) {
+        setError("Unable to connect to the server. Please try again.");
+        setIsStableResults(true);
+        setShowReducedOpacity(false);
+        setShowSpinner(false);
+      }
+    }, ATTEMPT_WINDOW);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(attemptTimeoutId);
+      clearTimeout(retryTimeoutId);
+    };
   }, [debouncedSearchQuery, selectedTags]);
+
+  // Extract fetchImages logic to a reusable function
+  const handleFetch = () => {
+    // Reset all states
+    setError(null);
+    setIsStableResults(false);
+    setShowReducedOpacity(false);
+    setShowSpinner(false);
+
+    // Force a re-run of the fetch effect
+    setDebouncedSearchQuery((prev) => prev + " ");
+  };
+
+  // Filter images based on selected tags
+  const filteredImages = useMemo(() => {
+    if (selectedTags.length === 0) return images;
+    return images.filter((image) =>
+      selectedTags.every((tag) => image.tags.includes(tag))
+    );
+  }, [images, selectedTags]);
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
     // First, count occurrences of each tag
     const tagCounts = new Map<string, number>();
-    images.forEach((image) => {
+    filteredImages.forEach((image) => {
       image.tags.forEach((tag) => {
         tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
       });
@@ -129,7 +278,7 @@ export default function Home() {
       // If color status is the same, sort alphabetically
       return a.name.localeCompare(b.name);
     });
-  }, [images]);
+  }, [filteredImages]);
 
   const toggleTag = (tagName: string) => {
     if (selectedTags.includes(tagName)) {
@@ -138,14 +287,6 @@ export default function Home() {
       setSelectedTags([...selectedTags, tagName]);
     }
   };
-
-  // Filter images based on selected tags
-  const filteredImages = useMemo(() => {
-    if (selectedTags.length === 0) return images;
-    return images.filter((image) =>
-      selectedTags.every((tag) => image.tags.includes(tag))
-    );
-  }, [images, selectedTags]);
 
   return (
     <div className="flex flex-col items-center justify-items-center min-h-screen font-[family-name:var(--font-geist-sans)] p-2">
@@ -178,7 +319,15 @@ export default function Home() {
         </div>
 
         {error && (
-          <div className="mt-6 text-red-500 text-center">Error: {error}</div>
+          <div className="mt-6 flex flex-col items-center justify-center">
+            <p className="text-red-500 text-center text-lg mb-4">{error}</p>
+            <button
+              onClick={handleFetch}
+              className="px-8 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-base font-medium"
+            >
+              Retry
+            </button>
+          </div>
         )}
 
         {isStableResults && !error && filteredImages.length === 0 && (
@@ -187,44 +336,56 @@ export default function Home() {
           </div>
         )}
 
-        {!error && filteredImages.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 w-full">
-            {filteredImages.map((image) => (
-              <div
-                key={image.id}
-                className="relative w-full aspect-square overflow-hidden rounded-lg h-[300px]"
-              >
-                <Image
-                  src={`http://127.0.0.1:8090/api/files/${image.collectionId}/${image.id}/${image.image}`}
-                  alt={image.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                />
-                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
-                  <h3 className="text-sm font-medium">{image.title}</h3>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {image.tags.map((tag) => {
-                      const colorInfo = getColorForTag(tag);
-                      return (
-                        <span
-                          key={tag}
-                          className={`text-xs rounded px-1 ${
-                            colorInfo
-                              ? `${colorInfo.bg} ${colorInfo.text}`
-                              : "bg-white bg-opacity-20 text-white"
-                          }`}
-                        >
-                          {tag}
-                        </span>
-                      );
-                    })}
+        <div className="relative w-full">
+          {showSpinner && (
+            <div className="absolute inset-0 flex items-center justify-center z-10">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+          )}
+
+          {!error && filteredImages.length > 0 && (
+            <div
+              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 w-full transition-opacity duration-300 ${
+                showReducedOpacity ? "opacity-50" : "opacity-100"
+              }`}
+            >
+              {filteredImages.map((image) => (
+                <div
+                  key={image.id}
+                  className="relative w-full aspect-square overflow-hidden rounded-lg h-[300px]"
+                >
+                  <Image
+                    src={`http://127.0.0.1:8090/api/files/${image.collectionId}/${image.id}/${image.image}`}
+                    alt={image.title}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
+                    <h3 className="text-sm font-medium">{image.title}</h3>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {image.tags.map((tag) => {
+                        const colorInfo = getColorForTag(tag);
+                        return (
+                          <span
+                            key={tag}
+                            className={`text-xs rounded px-1 ${
+                              colorInfo
+                                ? `${colorInfo.bg} ${colorInfo.text}`
+                                : "bg-white bg-opacity-20 text-white"
+                            }`}
+                          >
+                            {tag}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
