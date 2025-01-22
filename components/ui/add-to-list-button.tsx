@@ -60,32 +60,16 @@ export function AddToListButton({
     );
     setSelectedLists(initialSelected);
 
-    // Create a map of the current sorted order
-    const currentOrder = new Map(
-      sortedLists.map((list, index) => [list.id, index])
-    );
-
-    // Update sortedLists while maintaining the current order
+    // Sort lists by update time when they change
     setSortedLists(
-      [...lists].sort((a, b) => {
-        const aIndex = currentOrder.get(a.id) ?? Infinity;
-        const bIndex = currentOrder.get(b.id) ?? Infinity;
-        return aIndex - bIndex;
-      })
+      [...lists].sort(
+        (a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime()
+      )
     );
   }, [lists, imageId]);
 
   // Handle menu open/close
   const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen) {
-      // Only sort when opening
-      setSortedLists(
-        [...lists].sort(
-          (a, b) =>
-            new Date(b.updated).getTime() - new Date(a.updated).getTime()
-        )
-      );
-    }
     setOpen(newOpen);
   };
 

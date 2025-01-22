@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { updateImageList, deleteImageList } from "@/lib/pocketbase";
 import { CommandItem } from "@/components/ui/command";
 import { Trash2 } from "lucide-react";
 
@@ -14,25 +13,19 @@ interface EditableListItemProps {
   name: string;
   count?: number;
   checked?: boolean;
+  disabled?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   onListChange?: (listId: string, name: string) => Promise<void>;
   onListDelete?: (listId: string) => Promise<void>;
   showCheckbox?: boolean;
 }
 
-const EditingContext = createContext<boolean>(false);
-
 export function EditableListProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [isAnyItemEditing, setIsAnyItemEditing] = useState(false);
-  return (
-    <EditingContext.Provider value={isAnyItemEditing}>
-      {children}
-    </EditingContext.Provider>
-  );
+  return <>{children}</>;
 }
 
 export function EditableListItem({
@@ -40,6 +33,7 @@ export function EditableListItem({
   name,
   count,
   checked = false,
+  disabled = false,
   onCheckedChange,
   onListChange,
   onListDelete,
@@ -49,61 +43,11 @@ export function EditableListItem({
   const [isHovered, setIsHovered] = useState(false);
   const [editedName, setEditedName] = useState(name);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAnyOtherItemEditing, setIsAnyOtherItemEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const componentRef = useRef<HTMLDivElement>(null);
   const [shouldSave, setShouldSave] = useState(false);
 
-  useEffect(() => {
-    const handleEditingChange = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const editingId = customEvent.detail?.id;
-      setIsAnyOtherItemEditing(editingId !== undefined && editingId !== id);
-    };
-
-    document.addEventListener("editableListItemEditing", handleEditingChange);
-    return () => {
-      document.removeEventListener(
-        "editableListItemEditing",
-        handleEditingChange
-      );
-    };
-  }, [id]);
-
-  useEffect(() => {
-    if (isEditing) {
-      const event = new CustomEvent("editableListItemEditing", {
-        detail: { id },
-      });
-      document.dispatchEvent(event);
-    }
-    return () => {
-      const event = new CustomEvent("editableListItemEditing", {
-        detail: { id: null },
-      });
-      document.dispatchEvent(event);
-    };
-  }, [isEditing, id]);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  useEffect(() => {
-    if (shouldSave) {
-      handleSave();
-      setShouldSave(false);
-    }
-  }, [shouldSave]);
-
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (editedName.trim() === "") return;
     if (editedName === name) {
       setIsEditing(false);
@@ -115,11 +59,22 @@ export function EditableListItem({
       await onListChange?.(id, editedName.trim());
     } catch (error) {
       console.error("Error updating list:", error);
-      setEditedName(name); // Reset to original name on error
+      setEditedName(name);
     } finally {
       setIsLoading(false);
       setIsEditing(false);
     }
+  }, [editedName, name, id, onListChange]);
+
+  useEffect(() => {
+    if (shouldSave) {
+      handleSave();
+      setShouldSave(false);
+    }
+  }, [shouldSave, handleSave]);
+
+  const handleEdit = () => {
+    setIsEditing(true);
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -161,7 +116,7 @@ export function EditableListItem({
       <CommandItem
         ref={componentRef}
         onSelect={() => {
-          if (!isEditing && onCheckedChange) {
+          if (!isEditing && !disabled && onCheckedChange) {
             onCheckedChange(!checked);
           }
         }}
@@ -175,6 +130,7 @@ export function EditableListItem({
           <Checkbox
             id={id}
             checked={checked}
+            disabled={disabled}
             onCheckedChange={(checked) => {
               if (typeof checked === "boolean" && onCheckedChange) {
                 onCheckedChange(checked);
@@ -197,7 +153,7 @@ export function EditableListItem({
               onKeyDown={handleKeyDown}
               onBlur={handleBlur}
               className="h-6 py-0 text-sm -ml-[.567rem] pl-2"
-              disabled={isLoading}
+              disabled={isLoading || disabled}
             />
           ) : (
             <span className="flex-grow" onClick={(e) => e.preventDefault()}>
@@ -224,7 +180,7 @@ export function EditableListItem({
                 e.stopPropagation();
                 handleEdit();
               }}
-              disabled={isLoading}
+              disabled={isLoading || disabled}
               onMouseEnter={(e) => {
                 e.stopPropagation();
                 const cmdkItem = e.currentTarget.closest("[cmdk-item]");
@@ -254,7 +210,7 @@ export function EditableListItem({
                 e.stopPropagation();
                 handleDelete(e);
               }}
-              disabled={isLoading}
+              disabled={isLoading || disabled}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -266,7 +222,7 @@ export function EditableListItem({
                 e.stopPropagation();
                 handleSave();
               }}
-              disabled={isLoading}
+              disabled={isLoading || disabled}
             >
               Save
             </Button>

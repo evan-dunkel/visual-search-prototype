@@ -1,8 +1,8 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { X, ChevronDown, ChevronUp } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { X } from "lucide-react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Change from interface to exported interface
@@ -17,7 +17,6 @@ interface TagSelectorProps {
   availableTags: TagType[];
   selectedTags: string[];
   onTagToggle: (tag: string) => void;
-  searchQuery?: string;
 }
 
 // Update this utility function to work with Tailwind classes
@@ -48,7 +47,6 @@ export function TagSelector({
   availableTags: allTags,
   selectedTags,
   onTagToggle,
-  searchQuery = "",
 }: TagSelectorProps) {
   const [showMoreTags, setShowMoreTags] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);

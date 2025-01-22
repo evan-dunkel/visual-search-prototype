@@ -51,9 +51,6 @@ export function ComboFilter({
 }: ComboFilterProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [loadingLists, setLoadingLists] = React.useState<Set<string>>(
-    new Set()
-  );
   const [sortedLists, setSortedLists] = React.useState(lists);
 
   // Update sorted lists when lists prop changes or menu opens
@@ -196,8 +193,7 @@ export function ComboFilter({
                       name={list.name}
                       count={list.imageCount}
                       checked={selectedLists.has(list.id)}
-                      disabled={loadingLists.has(list.id)}
-                      onCheckedChange={(checked) => handleListToggle(list.id)}
+                      onCheckedChange={() => handleListToggle(list.id)}
                       onListChange={handleListUpdate}
                       onListDelete={handleListDelete}
                     />

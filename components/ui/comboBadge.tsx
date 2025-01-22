@@ -178,9 +178,7 @@ export function FilterBadge({
                       name={list.label}
                       count={list.images.length}
                       checked={selectedLists.includes(list.value)}
-                      onCheckedChange={(checked) =>
-                        handleListToggle(list.value)
-                      }
+                      onCheckedChange={() => handleListToggle(list.value)}
                       onListChange={handleListUpdate}
                       onListDelete={handleListDelete}
                     />

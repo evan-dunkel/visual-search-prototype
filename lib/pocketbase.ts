@@ -46,7 +46,7 @@ export async function getImages(
 
     console.log("Received records:", records);
 
-    return records.items.map((record: any) => ({
+    return records.items.map((record) => ({
       id: record.id,
       title: record.title,
       tags: Array.isArray(record.tags)
@@ -95,7 +95,7 @@ export async function getImageLists(): Promise<ImageList[]> {
       sort: "-created",
     });
 
-    return records.items.map((record: any) => ({
+    return records.items.map((record) => ({
       id: record.id,
       name: record.name,
       description: record.description,

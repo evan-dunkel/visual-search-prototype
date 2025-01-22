@@ -1,16 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect, useMemo } from "react";
-import { TagSelector, TagType } from "../components/tag-selector";
+import { TagSelector } from "../components/tag-selector";
 import { SearchInput } from "@/components/ui/SearchInput";
-import {
-  getImages,
-  ImageItem,
-  getImageLists,
-  ImageList,
-} from "@/lib/pocketbase";
+import { getImages, ImageItem, ImageList } from "@/lib/pocketbase";
 import { Loader2 } from "lucide-react";
 import { AddToListButton } from "@/components/ui/add-to-list-button";
 import { useListManager } from "@/lib/hooks/useListManager";
@@ -60,55 +54,6 @@ const getColorForTag = (
   return undefined;
 };
 
-// Helper function to detect server connectivity issues
-const isServerConnectivityError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) return false;
-
-  // Check the error message
-  const errorMessage = error.message.toLowerCase();
-
-  // Common fetch/network error patterns
-  const networkErrorPatterns = [
-    "failed to fetch",
-    "network error",
-    "network request failed",
-    "econnrefused",
-    "timeout",
-    "abort",
-    "not able to connect",
-    "connection refused",
-    "network offline",
-    "no internet",
-  ];
-
-  // Check if it's a TypeError (common for network issues)
-  if (
-    error instanceof TypeError &&
-    networkErrorPatterns.some((pattern) => errorMessage.includes(pattern))
-  ) {
-    return true;
-  }
-
-  // Check if it's a DOMException (e.g., AbortError)
-  if (error instanceof DOMException && error.name === "AbortError") {
-    return true;
-  }
-
-  // Check if it's a timeout error
-  if (errorMessage.includes("timeout") || error.name === "TimeoutError") {
-    return true;
-  }
-
-  // Check response status for server errors
-  if ("status" in error && typeof error.status === "number") {
-    // Server is down (503), gateway errors (502, 504), or no response
-    return [0, 502, 503, 504].includes(error.status);
-  }
-
-  // Check for other common network error patterns
-  return networkErrorPatterns.some((pattern) => errorMessage.includes(pattern));
-};
-
 export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedTagsOrder, setSelectedTagsOrder] = useState<
@@ -122,17 +67,13 @@ export default function Home() {
   const [isStableResults, setIsStableResults] = useState(false);
   const [showReducedOpacity, setShowReducedOpacity] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const {
     lists,
-    isLoading: isLoadingLists,
     error: listError,
     fetchLists,
     updateList,
     deleteList,
-    addToList,
-    removeFromList,
   } = useListManager();
 
   // Initial fetch of lists
@@ -158,34 +99,62 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Control opacity and spinner visibility with delays
-  useEffect(() => {
-    if (error || !isStableResults) {
-      setShowReducedOpacity(true);
-      if (!error) {
-        // Add delay before showing spinner
-        const spinnerTimer = setTimeout(() => {
-          setShowSpinner(true);
-        }, 1000);
+  // Extract fetchImages logic to a reusable function
+  const handleFetch = () => {
+    setError(null);
+    setIsStableResults(false);
+    setShowReducedOpacity(true);
+    setShowSpinner(true);
 
-        return () => clearTimeout(spinnerTimer);
-      }
-    }
-  }, [isStableResults, error]);
+    // Trigger a re-fetch by forcing the effect to run
+    const controller = new AbortController();
+    getImages(debouncedSearchQuery, controller.signal)
+      .then((fetchedImages) => {
+        setImages(fetchedImages);
+        setError(null);
+        setShowReducedOpacity(false);
+        setShowSpinner(false);
+        setIsStableResults(true);
+      })
+      .catch((err) => {
+        console.error("Error in handleFetch:", err);
+        setError("Unable to connect to the server. Please try again.");
+        setIsStableResults(true);
+        setShowSpinner(false);
+        setShowReducedOpacity(false);
+      });
+  };
 
   useEffect(() => {
-    const ATTEMPT_WINDOW = 5000; // 5 second window for all attempts
-    const RETRY_DELAY = 1000; // 500ms between retries
+    const ATTEMPT_WINDOW = 5000;
+    const RETRY_DELAY = 1000;
     let isMounted = true;
-    let attemptTimeoutId: NodeJS.Timeout;
     let retryTimeoutId: NodeJS.Timeout;
+
+    const attemptTimeoutId = setTimeout(() => {
+      if (isMounted) {
+        setError("Unable to connect to the server. Please try again.");
+        setIsStableResults(true);
+        setShowSpinner(false);
+        setShowReducedOpacity(false);
+      }
+    }, ATTEMPT_WINDOW);
+
+    const spinnerTimeoutId = setTimeout(() => {
+      if (isMounted && !error) {
+        setShowSpinner(true);
+      }
+    }, 1000);
+
+    const startTime = Date.now();
+
+    // Reset states at the start of a new fetch
+    setIsStableResults(false);
+    setShowReducedOpacity(true);
+    setShowSpinner(false); // Start without spinner
 
     const fetchData = async (attempt: number = 0): Promise<void> => {
       try {
-        if (attempt === 0) {
-          setIsStableResults(false);
-        }
-
         const controller = new AbortController();
         const [fetchedImages] = await Promise.all([
           getImages(debouncedSearchQuery, controller.signal),
@@ -193,18 +162,17 @@ export default function Home() {
 
         if (!isMounted) return;
 
-        console.log("Fetched images:", fetchedImages);
         setImages(fetchedImages);
         setError(null);
         setShowReducedOpacity(false);
         setShowSpinner(false);
-        clearTimeout(attemptTimeoutId);
         setIsStableResults(true);
+        clearTimeout(attemptTimeoutId);
+        clearTimeout(spinnerTimeoutId);
       } catch (err) {
         if (!isMounted) return;
         console.error("Error in fetchData:", err);
 
-        // Schedule next retry with delay, but only if we're still within the window
         const timeElapsed = Date.now() - startTime;
         if (timeElapsed < ATTEMPT_WINDOW - RETRY_DELAY) {
           retryTimeoutId = setTimeout(() => {
@@ -216,31 +184,20 @@ export default function Home() {
           setError("Unable to connect to the server. Please try again.");
           setIsStableResults(true);
           setShowSpinner(false);
+          setShowReducedOpacity(false);
         }
       }
     };
 
-    // Record start time for the attempt window
-    const startTime = Date.now();
-
-    // Start the fetch process
     fetchData();
-
-    // Set a timeout for the entire attempt window
-    attemptTimeoutId = setTimeout(() => {
-      if (isMounted) {
-        setError("Unable to connect to the server. Please try again.");
-        setIsStableResults(true);
-        setShowSpinner(false);
-      }
-    }, ATTEMPT_WINDOW);
 
     return () => {
       isMounted = false;
       clearTimeout(attemptTimeoutId);
       clearTimeout(retryTimeoutId);
+      clearTimeout(spinnerTimeoutId);
     };
-  }, [debouncedSearchQuery]);
+  }, [debouncedSearchQuery, error]);
 
   // Filter images based on selected tags and list
   const filteredImages = useMemo(() => {
@@ -259,17 +216,6 @@ export default function Home() {
       selectedTags.every((tag) => image.tags.includes(tag))
     );
   }, [images, selectedTags, selectedLists]);
-
-  // Extract fetchImages logic to a reusable function
-  const handleFetch = () => {
-    setError(null);
-    setIsStableResults(false);
-    setShowReducedOpacity(true);
-    setShowSpinner(true);
-
-    // Force a re-run of the fetch effect
-    setDebouncedSearchQuery((prev) => prev + " ");
-  };
 
   // Extract unique tags from loaded images and convert to TagType with colors
   const availableTags = useMemo(() => {
@@ -422,7 +368,6 @@ export default function Home() {
               availableTags={availableTags}
               selectedTags={selectedTags}
               onTagToggle={toggleTag}
-              searchQuery={searchQuery}
             />
           </div>
         </div>
